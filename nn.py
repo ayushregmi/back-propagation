@@ -1,12 +1,13 @@
 import pandas as pd
 import numpy as np
 class Layer:
-    def __init__(self, in_size, out_size, activation, keep_prob=1.0):
+    def __init__(self, in_size, out_size, activation, keep_prob=1.0, params_initialization='random'):
         
         self.in_size = in_size
         self.out_size = out_size
         self.activation = activation
-        self.keep_prob = 1.0
+        self.keep_prob = keep_prob
+        self.params_init = params_initialization
         self.input = None
         self.dw = None
         self.db = None
@@ -15,16 +16,28 @@ class Layer:
         self.__init_params__()
         
     def __init_params__(self):
-        self.w = np.random.uniform(size=(self.out_size, self.in_size)) * 0.1 - 0.05
+        if self.params_init == "random":
+            self.w = np.random.uniform(size=(self.out_size, self.in_size)) * 0.1 - 0.05
+        elif self.params_init == 'lecun':
+            self.w = np.random.uniform(low=-1/np.sqrt(self.in_size), high=1/np.sqrt(self.in_size), size=(self.out_size, self.in_size))
+        elif self.params_init == 'xe':
+            self.w = np.random.uniform(low=-np.sqrt(2/(self.in_size+self.out_size)), high=np.sqrt(2/(self.in_size+self.out_size)), size=(self.out_size, self.in_size))
+        elif self.params_init == 'he':
+            self.w = np.random.uniform(low=-np.sqrt(2/(self.in_size)), high=np.sqrt(2/(self.in_size)), size=(self.out_size, self.in_size))
         self.b = np.zeros((self.out_size, 1))
         
-    def __call__(self, X):
+    def __call__(self, X, train=False):
         
         assert self.in_size == X.shape[0]
         
         self.input = X
         
         self.z = np.matmul(self.w, X) + self.b
+        
+        if train:
+            dropout = np.random.uniform(low=0, high=1, size=(self.out_size, 1)) < self.keep_prob
+            self.z = np.multiply(self.z, dropout)
+        
         self.out = self.activation(self.z)
         
         return self.out
@@ -71,12 +84,12 @@ class Model:
         self.layers.append(layer)
         self.num_layer += 1
         
-    def __call__(self, X):
+    def __call__(self, X, train=False):
         
         out = X
         
         for layer in self.layers:
-            out = layer(out)
+            out = layer(out, train=train)
         
         return out
     
@@ -100,7 +113,7 @@ class Model:
         
         for i in range(iter):
     
-            out = self.__call__(X)
+            out = self.__call__(X, train=True)
             self.__back__(y, out, lr)
             
             loss = self.loss_func(y, out)
